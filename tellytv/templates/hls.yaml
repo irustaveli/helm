@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tellytv.hls.deployment.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: hls
+spec:
+  replicas: {{ .Values.hls.deployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tellytv.selectorLabels" . | nindent 6 }}
+      tier: hls
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "tellytv.selectorLabels" . | nindent 8 }}
+        tier: hls
+    spec:
+      serviceAccountName: {{ include "tellytv.serviceAccountName" . }}
+      containers:
+        - name: {{ include "tellytv.hls.container.name" . }}
+          image: "{{ .Values.hls.image.name }}:{{ .Values.hls.image.tag }}"
+          imagePullPolicy: {{ .Values.hls.image.pullPolicy }}
+          ports:
+            - containerPort: 8085
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.hls.container.resources | nindent 12 }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tellytv.hls.service.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: hls
+spec:
+  ports:
+    - port: {{ .Values.hls.service.port }}
+      protocol: TCP
+      targetPort: 8085
+      name: http
+  selector:
+    {{- include "tellytv.selectorLabels" . | nindent 4 }}
+    tier: hls
+
+---
+
+{{- if .Values.hls.hpa.enabled -}}
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "tellytv.hls.hpa.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: hls
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tellytv.hls.deployment.name" . }}
+  minReplicas: {{ .Values.hls.hpa.minReplicas }}
+  maxReplicas: {{ .Values.hls.hpa.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.hls.hpa.targetCPUUtilizationPercentage }}
+{{- end -}}

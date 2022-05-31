@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tellytv.jellyfin.deployment.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: jellyfin
+spec:
+  replicas: {{ .Values.jellyfin.deployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tellytv.selectorLabels" . | nindent 6 }}
+      tier: jellyfin
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "tellytv.selectorLabels" . | nindent 8 }}
+        tier: jellyfin
+    spec:
+      serviceAccountName: {{ include "tellytv.serviceAccountName" . }}
+      containers:
+        - name: {{ include "tellytv.jellyfin.container.name" . }}
+          image: "{{ .Values.jellyfin.image.name }}:{{ .Values.jellyfin.image.tag }}"
+          imagePullPolicy: {{ .Values.jellyfin.image.pullPolicy }}
+          ports:
+            - containerPort: 8096
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.jellyfin.container.resources | nindent 12 }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tellytv.jellyfin.service.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: jellyfin
+spec:
+  ports:
+    - port: {{ .Values.jellyfin.service.port }}
+      protocol: TCP
+      targetPort: 8096
+      name: http
+  selector:
+    {{- include "tellytv.selectorLabels" . | nindent 4 }}
+    tier: jellyfin
+
+---
+
+{{- if .Values.jellyfin.hpa.enabled -}}
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "tellytv.jellyfin.hpa.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: jellyfin
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tellytv.jellyfin.deployment.name" . }}
+  minReplicas: {{ .Values.jellyfin.hpa.minReplicas }}
+  maxReplicas: {{ .Values.jellyfin.hpa.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.jellyfin.hpa.targetCPUUtilizationPercentage }}
+{{- end -}}

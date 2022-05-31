@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tellytv.xteve.deployment.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: xteve
+spec:
+  replicas: {{ .Values.xteve.deployment.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tellytv.selectorLabels" . | nindent 6 }}
+      tier: xteve
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "tellytv.selectorLabels" . | nindent 8 }}
+        tier: xteve
+    spec:
+      serviceAccountName: {{ include "tellytv.serviceAccountName" . }}
+      containers:
+        - name: {{ include "tellytv.xteve.container.name" . }}
+          image: "{{ .Values.xteve.image.name }}:{{ .Values.xteve.image.tag }}"
+          imagePullPolicy: {{ .Values.xteve.image.pullPolicy }}
+          ports:
+            - containerPort: 34400
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.xteve.container.resources | nindent 12 }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tellytv.xteve.service.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: xteve
+spec:
+  ports:
+    - port: {{ .Values.xteve.service.port }}
+      protocol: TCP
+      targetPort: 34400
+      name: http
+  selector:
+    {{- include "tellytv.selectorLabels" . | nindent 4 }}
+    tier: xteve
+
+---
+
+{{- if .Values.xteve.hpa.enabled -}}
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "tellytv.xteve.hpa.name" . }}
+  labels:
+    {{- include "tellytv.labels" . | nindent 4 }}
+    tier: xteve
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "tellytv.xteve.deployment.name" . }}
+  minReplicas: {{ .Values.xteve.hpa.minReplicas }}
+  maxReplicas: {{ .Values.xteve.hpa.maxReplicas }}
+  targetCPUUtilizationPercentage: {{ .Values.xteve.hpa.targetCPUUtilizationPercentage }}
+{{- end -}}
